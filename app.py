@@ -145,6 +145,19 @@ def get_financial_data(ticker):
     return df
 
 
+def format_financial_table(df, columns, money=False):
+    table = df[columns].copy()
+
+    # Display fiscal years as column headings.
+    table.index = table.index.year.astype(str)
+    table = table.T
+    table.columns.name = "Fiscal Year"
+
+    if money:
+        table = table / 1e9
+
+    return table.round(2)
+
 ticker = st.text_input(
     "Enter Stock Ticker",
     value="AAPL"
@@ -193,72 +206,119 @@ if "df" in st.session_state:
         if pd.notna(latest["Free Cash Flow"]) else "N/A"
     )
 
-    st.subheader("Income Statement")
+   
+    st.subheader("Financial Statements")
 
-    income_cols = [
-        "Revenue", "Gross Profit",
-        "Operating Income", "Net Income"
-    ]
-    st.dataframe(
-        (df[income_cols] / 1e9).round(2),
-        use_container_width=True
-    )
-    st.caption("Income statement figures in USD billions.")
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Income Statement",
+        "Balance Sheet",
+        "Cash Flow",
+        "Financial Ratios"
+    ])
 
-    st.subheader("Balance Sheet")
+    with tab1:
+        income_cols = [
+            "Revenue",
+            "Gross Profit",
+            "Operating Income",
+            "Net Income"
+        ]
+        st.dataframe(
+            format_financial_table(
+                df, income_cols, money=True
+            ),
+            use_container_width=True
+        )
+        st.caption("USD billions")
 
-    balance_cols = [
-        "Cash", "Total Assets",
-        "Total Liabilities", "Equity", "Total Debt"
-    ]
-    st.dataframe(
-        (df[balance_cols] / 1e9).round(2),
-        use_container_width=True
-    )
-    st.caption("Balance sheet figures in USD billions.")
+    with tab2:
+        balance_cols = [
+            "Cash",
+            "Total Assets",
+            "Total Liabilities",
+            "Equity",
+            "Total Debt"
+        ]
+        st.dataframe(
+            format_financial_table(
+                df, balance_cols, money=True
+            ),
+            use_container_width=True
+        )
+        st.caption("USD billions")
 
-    st.subheader("Cash Flow Statement")
+    with tab3:
+        cash_cols = [
+            "Operating Cash Flow",
+            "Capital Expenditures",
+            "Free Cash Flow"
+        ]
+        st.dataframe(
+            format_financial_table(
+                df, cash_cols, money=True
+            ),
+            use_container_width=True
+        )
+        st.caption("USD billions")
 
-    cash_cols = [
-        "Operating Cash Flow",
-        "Capital Expenditures",
-        "Free Cash Flow"
-    ]
-    st.dataframe(
-        (df[cash_cols] / 1e9).round(2),
-        use_container_width=True
-    )
-    st.caption("Cash flow figures in USD billions.")
+    with tab4:
+        ratio_cols = [
+            "Revenue Growth (%)",
+            "Gross Margin (%)",
+            "Operating Margin (%)",
+            "Net Margin (%)",
+            "Current Ratio",
+            "Debt to Equity",
+            "ROE (%)"
+        ]
+        st.dataframe(
+            format_financial_table(
+                df, ratio_cols
+            ),
+            use_container_width=True
+        )
+        st.caption(
+            "Percentages are labeled (%). "
+            "Current Ratio and Debt to Equity are multiples."
+        )
 
-    st.subheader("Financial Ratios")
-
-    ratio_cols = [
-        "Revenue Growth (%)",
-        "Gross Margin (%)",
-        "Operating Margin (%)",
-        "Net Margin (%)",
-        "Current Ratio",
-        "Debt to Equity",
-        "ROE (%)"
-    ]
-    st.dataframe(
-        df[ratio_cols].round(2),
-        use_container_width=True
-    )
-
+   
     st.subheader("Financial Trends")
+
+    chart_df = df.copy()
+    chart_df.index = chart_df.index.year.astype(str)
+    chart_df.index.name = "Fiscal Year"
 
     left, right = st.columns(2)
 
     with left:
-        st.write("Annual Revenue (USD billions)")
-        st.line_chart(df["Revenue"] / 1e9)
+        st.write("Revenue and Operating Income")
+        st.bar_chart(
+            chart_df[["Revenue", "Operating Income"]] / 1e9,
+            x_label="Fiscal Year",
+            y_label="USD billions"
+        )
 
     with right:
-        st.write("Operating and Net Margins (%)")
+        st.write("Operating and Net Profit Margins")
         st.line_chart(
-            df[["Operating Margin (%)", "Net Margin (%)"]]
+            chart_df[
+                ["Operating Margin (%)", "Net Margin (%)"]
+            ],
+            x_label="Fiscal Year",
+            y_label="Margin (%)"
         )
+
+    st.write("Operating Cash Flow vs. Net Income")
+
+    st.bar_chart(
+        chart_df[
+            ["Operating Cash Flow", "Net Income"]
+        ] / 1e9,
+        x_label="Fiscal Year",
+        y_label="USD billions"
+    )
+
 
     st.subheader("Financial Analyst Report")
 
