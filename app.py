@@ -1104,3 +1104,180 @@ else:
         "Analyze a company above to enable "
         "SEC financial data verification."
     )
+
+# =====================================
+# ADVANCED FINANCIAL ANALYSIS
+# =====================================
+
+st.divider()
+st.header("Advanced Financial Analysis")
+
+if "df" in st.session_state and "analyzed_ticker" in st.session_state:
+
+    advanced_df = st.session_state.df.copy()
+    advanced_ticker = st.session_state.analyzed_ticker
+
+    st.write(
+        f"Additional profitability, growth, and cash flow "
+        f"analysis for **{advanced_ticker}**."
+    )
+
+    # Calculate additional metrics
+    advanced_df["FCF Margin (%)"] = (
+        advanced_df["Free Cash Flow"]
+        / advanced_df["Revenue"] * 100
+    )
+
+    advanced_df["Cash Conversion Ratio"] = (
+        advanced_df["Operating Cash Flow"]
+        / advanced_df["Net Income"]
+    )
+
+    advanced_df["CapEx Intensity (%)"] = (
+        (
+            advanced_df["Operating Cash Flow"]
+            - advanced_df["Free Cash Flow"]
+        )
+        / advanced_df["Revenue"] * 100
+    )
+
+    advanced_df["Asset Turnover"] = (
+        advanced_df["Revenue"]
+        / (
+            (
+                advanced_df["Total Assets"]
+                + advanced_df["Total Assets"].shift(1)
+            ) / 2
+        )
+    )
+
+    latest = advanced_df.iloc[-1]
+
+    st.subheader("Financial Performance Indicators")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    def show_advanced_metric(column, label, suffix="", decimals=2):
+        value = latest[column]
+        if pd.notna(value):
+            st.metric(label, f"{value:.{decimals}f}{suffix}")
+        else:
+            st.metric(label, "N/A")
+
+    with col1:
+        show_advanced_metric("FCF Margin (%)", "FCF Margin", "%")
+
+    with col2:
+        show_advanced_metric(
+            "Cash Conversion Ratio",
+            "Cash Conversion",
+            "x"
+        )
+
+    with col3:
+        show_advanced_metric(
+            "CapEx Intensity (%)",
+            "CapEx / Revenue",
+            "%"
+        )
+
+    with col4:
+        show_advanced_metric(
+            "Asset Turnover",
+            "Asset Turnover",
+            "x"
+        )
+
+    st.subheader("Advanced Financial Ratio Trends")
+
+    advanced_chart = advanced_df[
+        ["FCF Margin (%)", "CapEx Intensity (%)"]
+    ].copy()
+
+    advanced_chart.index = (
+        advanced_chart.index.year.astype(str)
+    )
+
+    st.line_chart(
+        advanced_chart,
+        x_label="Fiscal Year",
+        y_label="Percentage (%)"
+    )
+
+    st.subheader("Cash Conversion Trends")
+
+    cash_conversion_chart = advanced_df[
+        ["Cash Conversion Ratio"]
+    ].copy()
+
+    cash_conversion_chart = cash_conversion_chart.replace(
+        [float("inf"), float("-inf")],
+        float("nan")
+    )
+
+    cash_conversion_chart.index = (
+        cash_conversion_chart.index.year.astype(str)
+    )
+
+    st.line_chart(
+        cash_conversion_chart,
+        x_label="Fiscal Year",
+        y_label="Operating Cash Flow / Net Income"
+    )
+
+    st.subheader("Financial Strengths and Risks")
+
+    observations = []
+
+    if pd.notna(latest["FCF Margin (%)"]):
+        observations.append(
+            f"Free cash flow margin is "
+            f"{latest['FCF Margin (%)']:.2f}%, "
+            "showing the proportion of revenue "
+            "remaining as free cash flow."
+        )
+
+    if pd.notna(latest["Cash Conversion Ratio"]):
+        observations.append(
+            f"Operating cash flow is "
+            f"{latest['Cash Conversion Ratio']:.2f} times "
+            "reported net income. Interpret this ratio "
+            "carefully when net income is negative or small."
+        )
+
+    if pd.notna(latest["CapEx Intensity (%)"]):
+        observations.append(
+            f"Capital expenditure intensity is "
+            f"{latest['CapEx Intensity (%)']:.2f}% "
+            "of revenue, based on the cash flow data."
+        )
+
+    if pd.notna(latest["Current Ratio"]):
+        observations.append(
+            f"The current ratio is "
+            f"{latest['Current Ratio']:.2f}, "
+            "indicating current assets relative "
+            "to current liabilities."
+        )
+
+    if pd.notna(latest["Debt to Equity"]):
+        observations.append(
+            f"Debt-to-equity is "
+            f"{latest['Debt to Equity']:.2f}, "
+            "indicating debt relative to "
+            "shareholders' equity."
+        )
+
+    for observation in observations:
+        st.write("• " + observation)
+
+    st.caption(
+        "These indicators are descriptive, not investment "
+        "recommendations. Ratio interpretation depends on "
+        "industry, accounting policies, and financial context."
+    )
+
+else:
+    st.info(
+        "Analyze a company above to view advanced financial metrics."
+    )
