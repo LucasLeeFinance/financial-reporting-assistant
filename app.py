@@ -43,11 +43,24 @@ div[data-testid="stDataFrame"] {
 st.sidebar.title("Financial Reporting Assistant")
 st.sidebar.caption("Financial Analysis Platform")
 
+
 st.sidebar.markdown("### Navigation")
-st.sidebar.info(
-    "Use the sections below to analyze financial "
-    "statements, compare companies, verify SEC data, "
-    "and review advanced financial metrics."
+
+st.sidebar.page_link(
+    "app.py",
+    label="Financial Reporting Dashboard",
+    icon="📊"
+)
+
+st.sidebar.markdown("**Jump to Section**")
+
+st.sidebar.markdown("""
+- [Company Analysis](#company-analysis)
+- [Company Comparison](#company-comparison)
+- [SEC Verification](#sec-financial-data-verification)
+- [Advanced Analysis](#advanced-financial-analysis)
+""")
+
 )
 
 st.sidebar.divider()
@@ -260,6 +273,7 @@ def build_verified_observations(df):
 
     return "\n".join(observations)
 
+st.header("Company Analysis")
 
 ticker = st.text_input(
     "Enter Stock Ticker",
