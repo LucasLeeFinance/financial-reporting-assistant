@@ -167,6 +167,55 @@ def format_financial_table(df, columns, money=False):
 
     return table.round(2)
 
+def build_verified_observations(df):
+    observations = []
+
+    for i in range(1, len(df)):
+        current = df.iloc[i]
+        previous = df.iloc[i - 1]
+        year = df.index[i].year
+
+        revenue = current["Revenue"]
+        prior_revenue = previous["Revenue"]
+
+        if pd.notna(revenue) and pd.notna(prior_revenue):
+            if prior_revenue != 0:
+                growth = (revenue / prior_revenue - 1) * 100
+                observations.append(
+                    f"FY{year} revenue growth: {growth:.2f}%."
+                )
+
+        operating_cash = current["Operating Cash Flow"]
+        net_income = current["Net Income"]
+
+        if pd.notna(operating_cash) and pd.notna(net_income):
+            difference = operating_cash - net_income
+
+            if difference >= 0:
+                observations.append(
+                    f"FY{year} operating cash flow exceeded "
+                    f"or equaled net income by "
+                    f"${difference / 1e9:.2f} billion."
+                )
+            else:
+                observations.append(
+                    f"FY{year} operating cash flow was below "
+                    f"net income by "
+                    f"${abs(difference) / 1e9:.2f} billion."
+                )
+
+        operating_margin = current["Operating Margin (%)"]
+        prior_margin = previous["Operating Margin (%)"]
+
+        if pd.notna(operating_margin) and pd.notna(prior_margin):
+            change = operating_margin - prior_margin
+            observations.append(
+                f"FY{year} operating margin changed by "
+                f"{change:+.2f} percentage points."
+            )
+
+    return "\n".join(observations)
+
 ticker = st.text_input(
     "Enter Stock Ticker",
     value="AAPL"
@@ -347,6 +396,8 @@ if "df" in st.session_state:
         summary[money_cols] = summary[money_cols] / 1e9
         financial_summary = summary.round(2).to_string()
 
+        verified_observations = build_verified_observations(df)
+
         prompt = f"""
         Write a professional financial analyst report for
         {active_ticker} using the following annual data.
@@ -355,6 +406,19 @@ if "df" in st.session_state:
         identified as ratios or percentages.
 
         {financial_summary}
+
+        PRECALCULATED FINANCIAL OBSERVATIONS:
+        {verified_observations}
+
+        These observations were calculated directly from
+        the supplied financial data. Use them when making
+        comparisons between fiscal years.
+
+        Never contradict these calculations.
+        Do not claim that a financial trend occurred
+        in every year unless the data confirms it.
+        Do not infer the causes of financial changes
+        without supporting information.
 
         Write approximately 700-900 words, prioritizing
         accuracy and meaningful analysis over length.
