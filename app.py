@@ -38,8 +38,8 @@ def safe_ratio(numerator, denominator, multiplier=1):
 
 
 @st.cache_data(ttl=3600)
-def get_financial_data(ticker):
-    company = yf.Ticker(ticker)
+def get_financial_data():
+    company = yf.()
 
     income = company.income_stmt
     balance = company.balance_sheet
@@ -216,10 +216,33 @@ def build_verified_observations(df):
 
     return "\n".join(observations)
 
+ = st.text_input(
+    "Enter Stock ",
+    value="AAPL"
+).strip().upper()
+
 ticker = st.text_input(
     "Enter Stock Ticker",
     value="AAPL"
 ).strip().upper()
+
+# Official SEC filing resources
+st.subheader("Official SEC Filings")
+
+st.write(
+    "Financial data comes from Yahoo Finance. "
+    "Review official SEC filings to verify the figures."
+)
+
+st.link_button(
+    "Search Official SEC Filings",
+    "https://www.sec.gov/search-filings"
+)
+
+st.caption(
+    f"Search for {ticker} on the SEC website. "
+    "Use Form 10-K for annual financial statements."
+)
 
 if st.button("Analyze Company", type="primary"):
     st.session_state.pop("report", None)
