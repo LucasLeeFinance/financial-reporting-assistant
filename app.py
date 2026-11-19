@@ -117,6 +117,15 @@ def get_financial_data(ticker):
 
     df = pd.DataFrame(records).set_index("Date")
     df = df.sort_index()
+ # Remove years without the three core financial statements.
+    required_columns = [
+        "Revenue",
+        "Net Income",
+        "Total Assets",
+        "Operating Cash Flow"
+    ]
+
+    df = df.dropna(subset=required_columns)
 
     if df["Revenue"].notna().sum() < 2:
         raise ValueError("Insufficient annual financial data.")
