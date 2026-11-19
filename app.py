@@ -513,3 +513,174 @@ if "df" in st.session_state:
 
     if "report" in st.session_state:
         st.markdown(st.session_state.report)
+    
+# =====================================
+# COMPANY COMPARISON
+# =====================================
+
+st.divider()
+st.header("Company Comparison")
+st.write(
+    "Compare two publicly traded companies using "
+    "their latest available annual financial statements."
+)
+
+left_input, right_input = st.columns(2)
+
+with left_input:
+    ticker_1 = st.text_input(
+        "First Company",
+        value="AAPL",
+        key="comparison_ticker_1"
+    ).strip().upper()
+
+with right_input:
+    ticker_2 = st.text_input(
+        "Second Company",
+        value="MSFT",
+        key="comparison_ticker_2"
+    ).strip().upper()
+
+
+if st.button("Compare Companies"):
+    st.session_state.pop("comparison_data", None)
+
+    if not ticker_1 or not ticker_2:
+        st.warning("Enter two stock tickers.")
+
+    elif ticker_1 == ticker_2:
+        st.warning("Choose two different companies.")
+
+    else:
+        with st.spinner("Loading company financial data..."):
+            try:
+                company_1 = get_financial_data(ticker_1)
+                company_2 = get_financial_data(ticker_2)
+
+                st.session_state.comparison_data = {
+                    "ticker_1": ticker_1,
+                    "ticker_2": ticker_2,
+                    "company_1": company_1,
+                    "company_2": company_2
+                }
+
+            except Exception as e:
+                st.error(f"Comparison unavailable: {e}")
+
+
+if "comparison_data" in st.session_state:
+    comparison = st.session_state.comparison_data
+
+    df1 = comparison["company_1"]
+    df2 = comparison["company_2"]
+
+    name1 = comparison["ticker_1"]
+    name2 = comparison["ticker_2"]
+
+    latest1 = df1.iloc[-1]
+    latest2 = df2.iloc[-1]
+
+    date1 = df1.index[-1].strftime("%B %d, %Y")
+    date2 = df2.index[-1].strftime("%B %d, %Y")
+
+    st.subheader(f"{name1} vs. {name2}")
+
+    st.caption(
+        f"{name1} fiscal year ended {date1}. "
+        f"{name2} fiscal year ended {date2}. "
+        "Reporting periods may differ."
+    )
+
+    metrics = {
+        "Revenue (USD billions)": "Revenue",
+        "Revenue Growth (%)": "Revenue Growth (%)",
+        "Gross Margin (%)": "Gross Margin (%)",
+        "Operating Margin (%)": "Operating Margin (%)",
+        "Net Margin (%)": "Net Margin (%)",
+        "Current Ratio": "Current Ratio",
+        "Debt to Equity": "Debt to Equity",
+        "ROE (%)": "ROE (%)",
+        "Operating Cash Flow (USD billions)": "Operating Cash Flow",
+        "Free Cash Flow (USD billions)": "Free Cash Flow"
+    }
+
+    rows = []
+
+    for label, column in metrics.items():
+        value1 = latest1[column]
+        value2 = latest2[column]
+
+        if "USD billions" in label:
+            value1 = value1 / 1e9
+            value2 = value2 / 1e9
+
+        rows.append({
+            "Financial Metric": label,
+            name1: value1,
+            name2: value2
+        })
+
+    comparison_table = pd.DataFrame(rows)
+    comparison_table = comparison_table.set_index(
+        "Financial Metric"
+    )
+
+    st.dataframe(
+        comparison_table.round(2),
+        use_container_width=True
+    )
+
+    st.caption(
+        "Figures are sourced from Yahoo Finance via yfinance. "
+        "Financial metrics are not adjusted for differences "
+        "in fiscal year-end dates or accounting policies."
+    )
+
+    st.subheader("Profitability Comparison")
+
+    margin_metrics = [
+        "Gross Margin (%)",
+        "Operating Margin (%)",
+        "Net Margin (%)"
+    ]
+
+    margin_chart = pd.DataFrame({
+        name1: [
+            latest1[metric] for metric in margin_metrics
+        ],
+        name2: [
+            latest2[metric] for metric in margin_metrics
+        ]
+    }, index=[
+        "Gross Margin",
+        "Operating Margin",
+        "Net Margin"
+    ])
+
+    st.bar_chart(
+        margin_chart,
+        x_label="Profitability Metric",
+        y_label="Margin (%)"
+    )
+
+    st.subheader("Cash Flow Comparison")
+
+    cash_chart = pd.DataFrame({
+        name1: [
+            latest1["Operating Cash Flow"] / 1e9,
+            latest1["Free Cash Flow"] / 1e9
+        ],
+        name2: [
+            latest2["Operating Cash Flow"] / 1e9,
+            latest2["Free Cash Flow"] / 1e9
+        ]
+    }, index=[
+        "Operating Cash Flow",
+        "Free Cash Flow"
+    ])
+
+    st.bar_chart(
+        cash_chart,
+        x_label="Cash Flow Metric",
+        y_label="USD billions"
+    )
