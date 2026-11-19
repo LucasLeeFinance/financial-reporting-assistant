@@ -223,11 +223,6 @@ ticker = st.text_input(
 ).strip().upper()
 
 
-ticker = st.text_input(
-    "Enter Stock Ticker",
-    value="AAPL"
-).strip().upper()
-
 # Official SEC filing resources
 st.subheader("Official SEC Filings")
 
