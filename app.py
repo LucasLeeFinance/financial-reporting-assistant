@@ -11,6 +11,50 @@ st.set_page_config(
     layout="wide"
 )
 
+# =====================================
+# WEBSITE HEADER AND NAVIGATION
+# =====================================
+
+st.markdown("""
+<style>
+.block-container {
+    max-width: 1250px;
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+}
+
+h1, h2, h3 {
+    letter-spacing: -0.5px;
+}
+
+div[data-testid="stMetric"] {
+    background-color: rgba(128, 128, 128, 0.07);
+    padding: 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(128, 128, 128, 0.15);
+}
+
+div[data-testid="stDataFrame"] {
+    border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.sidebar.title("Financial Reporting Assistant")
+st.sidebar.caption("Financial Analysis Platform")
+
+st.sidebar.markdown("### Navigation")
+st.sidebar.info(
+    "Use the sections below to analyze financial "
+    "statements, compare companies, verify SEC data, "
+    "and review advanced financial metrics."
+)
+
+st.sidebar.divider()
+st.sidebar.caption(
+    "Data: Yahoo Finance | Verification: SEC EDGAR"
+)
+
 st.title("📊 Financial Reporting Assistant")
 st.write(
     "Financial statement analysis, performance trends, "
