@@ -216,10 +216,12 @@ def build_verified_observations(df):
 
     return "\n".join(observations)
 
- = st.text_input(
-    "Enter Stock ",
+
+ticker = st.text_input(
+    "Enter Stock Ticker",
     value="AAPL"
 ).strip().upper()
+
 
 ticker = st.text_input(
     "Enter Stock Ticker",
