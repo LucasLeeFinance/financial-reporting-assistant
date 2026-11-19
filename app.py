@@ -784,3 +784,291 @@ if "comparison_data" in st.session_state:
 
     if "comparison_report" in st.session_state:
         st.markdown(st.session_state.comparison_report)
+
+# =====================================
+# SEC FINANCIAL DATA VERIFICATION
+# =====================================
+
+import requests
+
+st.divider()
+st.header("SEC Financial Data Verification")
+
+st.write(
+    "Compare Yahoo Finance annual financial figures "
+    "with official SEC XBRL data for matching fiscal periods."
+)
+
+SEC_HEADERS = {
+    "User-Agent": (
+        f"FinancialReportingAssistant "
+        f"{st.secrets['SEC_CONTACT_EMAIL']}"
+    ),
+    "Accept-Encoding": "gzip, deflate",
+}
+
+
+@st.cache_data(ttl=86400)
+def get_sec_company_tickers():
+    url = "https://www.sec.gov/files/company_tickers.json"
+
+    response = requests.get(
+        url, headers=SEC_HEADERS, timeout=20
+    )
+    response.raise_for_status()
+
+    companies = response.json()
+
+    return {
+        company["ticker"].upper(): str(
+            company["cik_str"]
+        ).zfill(10)
+        for company in companies.values()
+    }
+
+
+@st.cache_data(ttl=86400)
+def get_sec_company_facts(cik):
+    url = (
+        "https://data.sec.gov/api/xbrl/companyfacts/"
+        f"CIK{cik}.json"
+    )
+
+    response = requests.get(
+        url, headers=SEC_HEADERS, timeout=25
+    )
+    response.raise_for_status()
+
+    return response.json()
+
+
+def get_sec_annual_value(facts, tags, fiscal_end):
+    us_gaap = facts.get("facts", {}).get("us-gaap", {})
+    matches = []
+
+    for tag_priority, tag in enumerate(tags):
+        fact = us_gaap.get(tag, {})
+        entries = fact.get("units", {}).get("USD", [])
+
+        for entry in entries:
+            if entry.get("form") != "10-K":
+                continue
+
+            if entry.get("end") != fiscal_end:
+                continue
+
+            start = entry.get("start")
+
+            if not start:
+                continue
+
+            try:
+                duration = (
+                    pd.Timestamp(entry["end"])
+                    - pd.Timestamp(start)
+                ).days
+            except (ValueError, TypeError):
+                continue
+
+            # Require approximately one full fiscal year.
+            if not 350 <= duration <= 380:
+                continue
+
+            if entry.get("val") is None:
+                continue
+
+            matches.append(
+                (
+                    tag_priority,
+                    entry.get("filed", ""),
+                    float(entry["val"]),
+                    tag,
+                )
+            )
+
+    if not matches:
+        return None, None
+
+    # Prefer the primary accounting tag, then the
+    # latest SEC filing containing that annual value.
+    matches.sort(
+        key=lambda item: (item[0], item[1]),
+        reverse=False
+    )
+
+    best_priority = matches[0][0]
+    preferred = [
+        item for item in matches
+        if item[0] == best_priority
+    ]
+    preferred.sort(key=lambda item: item[1], reverse=True)
+
+    selected = preferred[0]
+    return selected[2], selected[3]
+
+
+if "df" in st.session_state and "analyzed_ticker" in st.session_state:
+
+    verification_ticker = st.session_state.analyzed_ticker
+    verification_df = st.session_state.df
+
+    st.write(
+        f"Selected company: **{verification_ticker}**"
+    )
+
+    if st.button("Verify Financial Data Against SEC"):
+
+        with st.spinner("Retrieving official SEC data..."):
+
+            try:
+                ticker_map = get_sec_company_tickers()
+
+                if verification_ticker not in ticker_map:
+                    st.warning(
+                        "This ticker was not found in the "
+                        "SEC company directory."
+                    )
+                else:
+                    cik = ticker_map[verification_ticker]
+                    sec_facts = get_sec_company_facts(cik)
+
+                    metric_tags = {
+                        "Revenue": [
+                            "RevenueFromContractWithCustomerExcludingAssessedTax",
+                            "Revenues",
+                            "SalesRevenueNet",
+                        ],
+                        "Net Income": [
+                            "NetIncomeLoss",
+                        ],
+                    }
+
+                    results = []
+
+                    for date, row in verification_df.iterrows():
+
+                        fiscal_end = date.strftime("%Y-%m-%d")
+
+                        for metric, tags in metric_tags.items():
+
+                            yahoo_value = row.get(metric)
+
+                            sec_value, sec_tag = (
+                                get_sec_annual_value(
+                                    sec_facts,
+                                    tags,
+                                    fiscal_end
+                                )
+                            )
+
+                            if (
+                                sec_value is None
+                                or pd.isna(yahoo_value)
+                            ):
+                                results.append({
+                                    "Fiscal Year End": fiscal_end,
+                                    "Metric": metric,
+                                    "Yahoo Finance ($B)": (
+                                        yahoo_value / 1e9
+                                        if pd.notna(yahoo_value)
+                                        else None
+                                    ),
+                                    "SEC ($B)": (
+                                        sec_value / 1e9
+                                        if sec_value is not None
+                                        else None
+                                    ),
+                                    "Difference ($B)": None,
+                                    "Difference (%)": None,
+                                    "Status": "Not verified",
+                                })
+                                continue
+
+                            difference = (
+                                float(yahoo_value) - sec_value
+                            )
+
+                            percent_difference = (
+                                abs(difference) / abs(sec_value) * 100
+                                if sec_value != 0
+                                else None
+                            )
+
+                            tolerance = max(
+                                abs(sec_value) * 0.001,
+                                1_000_000
+                            )
+
+                            status = (
+                                "Numerically matched"
+                                if abs(difference) <= tolerance
+                                else "Review difference"
+                            )
+
+                            results.append({
+                                "Fiscal Year End": fiscal_end,
+                                "Metric": metric,
+                                "Yahoo Finance ($B)": (
+                                    float(yahoo_value) / 1e9
+                                ),
+                                "SEC ($B)": sec_value / 1e9,
+                                "Difference ($B)": difference / 1e9,
+                                "Difference (%)": percent_difference,
+                                "Status": status,
+                            })
+
+                    st.session_state.sec_verification = {
+                        "ticker": verification_ticker,
+                        "results": pd.DataFrame(results),
+                    }
+
+            except requests.exceptions.RequestException as e:
+                st.error(
+                    "SEC data could not be retrieved. "
+                    "The SEC may be temporarily unavailable "
+                    "or may have restricted this request."
+                )
+                st.caption(str(e))
+
+            except Exception as e:
+                st.error(f"Verification unavailable: {e}")
+
+
+    if "sec_verification" in st.session_state:
+
+        saved = st.session_state.sec_verification
+
+        if saved["ticker"] == verification_ticker:
+
+            st.subheader("Verification Results")
+
+            st.dataframe(
+                saved["results"].round(3),
+                use_container_width=True
+            )
+
+            st.caption(
+                "Numerically matched means the values agree "
+                "within 0.1% or $1 million, whichever is larger. "
+                "This is not an audit or a guarantee of accuracy. "
+                "Missing figures and accounting-definition "
+                "differences require manual review."
+            )
+
+            st.link_button(
+                "View SEC Company Facts",
+                (
+                    "https://data.sec.gov/api/xbrl/"
+                    "companyfacts/CIK"
+                    + get_sec_company_tickers()[
+                        verification_ticker
+                    ]
+                    + ".json"
+                )
+            )
+
+else:
+    st.info(
+        "Analyze a company above to enable "
+        "SEC financial data verification."
+    )
