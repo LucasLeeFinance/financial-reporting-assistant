@@ -16,83 +16,235 @@ st.write(
     "Financial statement analysis, performance trends, "
     "and AI-assisted analyst commentary."
 )
-
 st.caption(
-    "Financial data from Yahoo Finance via yfinance. "
-    "Verify important figures against company filings. "
-    "For educational and research purposes only."
+    "Source: Yahoo Finance via yfinance. "
+    "Figures should be verified against company filings."
 )
+
+
+def get_value(statement, names, date):
+    for name in names:
+        if name in statement.index and date in statement.columns:
+            value = statement.loc[name, date]
+            if pd.notna(value):
+                return float(value)
+    return None
+
+
+def safe_ratio(numerator, denominator, multiplier=1):
+    if numerator is None or denominator is None or denominator == 0:
+        return None
+    return numerator / denominator * multiplier
 
 
 @st.cache_data(ttl=3600)
 def get_financial_data(ticker):
-    financials = yf.Ticker(ticker).income_stmt
+    company = yf.Ticker(ticker)
 
-    if financials.empty:
-        raise ValueError("No financial statements found.")
+    income = company.income_stmt
+    balance = company.balance_sheet
+    cashflow = company.cashflow
 
-    required = ["Total Revenue", "Net Income"]
+    if income.empty:
+        raise ValueError("No annual income statement found.")
 
-    for item in required:
-        if item not in financials.index:
-            raise ValueError(f"Missing financial item: {item}")
+    dates = sorted(pd.to_datetime(income.columns))
 
-    df = pd.DataFrame({
-        "Revenue": financials.loc["Total Revenue"],
-        "Net Income": financials.loc["Net Income"]
-    })
+    records = []
 
-    df.index = pd.to_datetime(df.index)
+    for date in dates:
+        revenue = get_value(income, ["Total Revenue"], date)
+        gross_profit = get_value(income, ["Gross Profit"], date)
+        operating_income = get_value(
+            income, ["Operating Income"], date
+        )
+        net_income = get_value(
+            income, ["Net Income", "Net Income Common Stockholders"], date
+        )
+
+        cash = get_value(
+            balance,
+            ["Cash And Cash Equivalents",
+             "Cash Cash Equivalents And Short Term Investments"],
+            date
+        )
+
+        assets = get_value(balance, ["Total Assets"], date)
+        liabilities = get_value(
+            balance, ["Total Liabilities Net Minority Interest"], date
+        )
+        equity = get_value(
+            balance, ["Stockholders Equity", "Common Stock Equity"], date
+        )
+        current_assets = get_value(
+            balance, ["Current Assets"], date
+        )
+        current_liabilities = get_value(
+            balance, ["Current Liabilities"], date
+        )
+        debt = get_value(
+            balance, ["Total Debt"], date
+        )
+
+        operating_cashflow = get_value(
+            cashflow, ["Operating Cash Flow"], date
+        )
+        capex = get_value(
+            cashflow, ["Capital Expenditure"], date
+        )
+
+        free_cashflow = None
+        if operating_cashflow is not None and capex is not None:
+            free_cashflow = operating_cashflow + capex
+
+        records.append({
+            "Date": date,
+            "Revenue": revenue,
+            "Gross Profit": gross_profit,
+            "Operating Income": operating_income,
+            "Net Income": net_income,
+            "Cash": cash,
+            "Total Assets": assets,
+            "Total Liabilities": liabilities,
+            "Equity": equity,
+            "Current Assets": current_assets,
+            "Current Liabilities": current_liabilities,
+            "Total Debt": debt,
+            "Operating Cash Flow": operating_cashflow,
+            "Capital Expenditures": capex,
+            "Free Cash Flow": free_cashflow
+        })
+
+    df = pd.DataFrame(records).set_index("Date")
     df = df.sort_index()
-    df = df.dropna(subset=["Revenue", "Net Income"])
 
-    if len(df) < 2:
-        raise ValueError("At least two years of data are required.")
+    if df["Revenue"].notna().sum() < 2:
+        raise ValueError("Insufficient annual financial data.")
 
-    df["Profit Margin"] = df["Net Income"] / df["Revenue"] * 100
-    df["Revenue Growth"] = df["Revenue"].pct_change() * 100
+    df["Revenue Growth (%)"] = df["Revenue"].pct_change() * 100
+    df["Gross Margin (%)"] = (
+        df["Gross Profit"] / df["Revenue"] * 100
+    )
+    df["Operating Margin (%)"] = (
+        df["Operating Income"] / df["Revenue"] * 100
+    )
+    df["Net Margin (%)"] = (
+        df["Net Income"] / df["Revenue"] * 100
+    )
+    df["Current Ratio"] = (
+        df["Current Assets"] / df["Current Liabilities"]
+    )
+    df["Debt to Equity"] = df["Total Debt"] / df["Equity"]
+
+    # ROE uses average equity when prior-year equity is available.
+    average_equity = (
+        df["Equity"] + df["Equity"].shift(1)
+    ) / 2
+    df["ROE (%)"] = df["Net Income"] / average_equity * 100
 
     return df
 
 
-ticker = st.text_input("Stock Ticker", value="AAPL").strip().upper()
+ticker = st.text_input(
+    "Enter Stock Ticker",
+    value="AAPL"
+).strip().upper()
 
 if st.button("Analyze Company", type="primary"):
     st.session_state.pop("report", None)
     st.session_state.pop("df", None)
     st.session_state.pop("analyzed_ticker", None)
 
-    with st.spinner("Loading financial data..."):
+    with st.spinner("Retrieving financial statements..."):
         try:
-            st.session_state.df = get_financial_data(ticker)
+            df = get_financial_data(ticker)
+            st.session_state.df = df
             st.session_state.analyzed_ticker = ticker
         except Exception as e:
             st.error(f"Unable to analyze company: {e}")
+
 
 if "df" in st.session_state:
     df = st.session_state.df
     active_ticker = st.session_state.analyzed_ticker
 
     latest = df.iloc[-1]
-    previous = df.iloc[-2]
     latest_year = df.index[-1].year
 
-    st.subheader(f"{active_ticker} — Fiscal {latest_year}")
+    st.header(f"{active_ticker} — Fiscal {latest_year}")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Revenue", f"${latest['Revenue']/1e9:,.2f}B")
-    col2.metric("Revenue Growth", f"{latest['Revenue Growth']:.2f}%")
-    col3.metric("Net Profit Margin", f"{latest['Profit Margin']:.2f}%")
+    col1.metric(
+        "Revenue",
+        f"${latest['Revenue']/1e9:,.2f}B"
+    )
+    col2.metric(
+        "Revenue Growth",
+        f"{latest['Revenue Growth (%)']:.2f}%"
+    )
+    col3.metric(
+        "Operating Margin",
+        f"{latest['Operating Margin (%)']:.2f}%"
+    )
+    col4.metric(
+        "Free Cash Flow",
+        f"${latest['Free Cash Flow']/1e9:,.2f}B"
+        if pd.notna(latest["Free Cash Flow"]) else "N/A"
+    )
 
-    display_df = df.copy()
-    display_df.index = display_df.index.year
-    display_df.index.name = "Fiscal Year"
-    display_df["Revenue"] /= 1e9
-    display_df["Net Income"] /= 1e9
+    st.subheader("Income Statement")
 
-    st.subheader("Financial Performance")
-    st.dataframe(display_df.round(2), use_container_width=True)
+    income_cols = [
+        "Revenue", "Gross Profit",
+        "Operating Income", "Net Income"
+    ]
+    st.dataframe(
+        (df[income_cols] / 1e9).round(2),
+        use_container_width=True
+    )
+    st.caption("Income statement figures in USD billions.")
+
+    st.subheader("Balance Sheet")
+
+    balance_cols = [
+        "Cash", "Total Assets",
+        "Total Liabilities", "Equity", "Total Debt"
+    ]
+    st.dataframe(
+        (df[balance_cols] / 1e9).round(2),
+        use_container_width=True
+    )
+    st.caption("Balance sheet figures in USD billions.")
+
+    st.subheader("Cash Flow Statement")
+
+    cash_cols = [
+        "Operating Cash Flow",
+        "Capital Expenditures",
+        "Free Cash Flow"
+    ]
+    st.dataframe(
+        (df[cash_cols] / 1e9).round(2),
+        use_container_width=True
+    )
+    st.caption("Cash flow figures in USD billions.")
+
+    st.subheader("Financial Ratios")
+
+    ratio_cols = [
+        "Revenue Growth (%)",
+        "Gross Margin (%)",
+        "Operating Margin (%)",
+        "Net Margin (%)",
+        "Current Ratio",
+        "Debt to Equity",
+        "ROE (%)"
+    ]
+    st.dataframe(
+        df[ratio_cols].round(2),
+        use_container_width=True
+    )
 
     st.subheader("Financial Trends")
 
@@ -103,82 +255,65 @@ if "df" in st.session_state:
         st.line_chart(df["Revenue"] / 1e9)
 
     with right:
-        st.write("Net Profit Margin (%)")
-        st.line_chart(df["Profit Margin"])
+        st.write("Operating and Net Margins (%)")
+        st.line_chart(
+            df[["Operating Margin (%)", "Net Margin (%)"]]
+        )
 
     st.subheader("Financial Analyst Report")
 
-   
     if st.button("Generate AI Report"):
-        historical = df.copy()
-        historical.index = historical.index.strftime("%Y-%m-%d")
-        historical["Revenue"] /= 1e9
-        historical["Net Income"] /= 1e9
+        summary = df.copy()
+        summary.index = summary.index.strftime("%Y-%m-%d")
 
-        financial_summary = historical.round(2).to_string()
+        money_cols = [
+            "Revenue", "Gross Profit", "Operating Income",
+            "Net Income", "Cash", "Total Assets",
+            "Total Liabilities", "Equity", "Current Assets",
+            "Current Liabilities", "Total Debt",
+            "Operating Cash Flow", "Capital Expenditures",
+            "Free Cash Flow"
+        ]
+
+        summary[money_cols] = summary[money_cols] / 1e9
+        financial_summary = summary.round(2).to_string()
 
         prompt = f"""
-        You are writing a financial research report for an
-        audience of finance professionals.
+        Write a professional financial analyst report for
+        {active_ticker} using the following annual data.
 
-        Company ticker: {active_ticker}
+        Financial figures are in USD billions unless
+        identified as ratios or percentages.
 
-        Annual financial data from a third-party data provider:
         {financial_summary}
 
-        IMPORTANT DATA RULES:
-        - Treat the figures as provider-supplied data that
-          has not yet been verified against company filings.
-        - Do not label any period as projected or forecasted
-          unless it is explicitly identified as such.
-        - Do not assume a period is audited or final.
-        - Do not invent causes, business events, or segment data.
-        - Clearly distinguish calculations, observations,
-          and possible explanations.
-        - Do not claim to have reviewed filings or other
-          documents that were not provided.
+        Write approximately 700-900 words, prioritizing
+        accuracy and meaningful analysis over length.
 
-        Write a financial analysis of approximately 700-900
-        words, but prioritize substance over length.
-
-        STRUCTURE:
-
+        Include:
         1. Executive Summary
-           Summarize the two or three most meaningful findings.
-
-        2. Revenue Performance
-           Examine growth rates, changes in growth,
-           and absolute revenue movements.
-
-        3. Profitability Analysis
-           Examine net income, net profit margins,
-           and how earnings changed relative to revenue.
-
-        4. Financial Strengths and Concerns
-           Identify specific trends supported by the figures.
-           Explain why they matter to an analyst.
-
-        5. Questions for Further Investigation
-           Identify missing financial or operational
-           information needed to explain the trends.
-
+        2. Revenue and Profitability
+        3. Balance Sheet and Financial Position
+        4. Cash Flow and Earnings Quality
+        5. Financial Strengths and Risks
         6. Analyst Conclusion
-           Provide a balanced assessment without
-           making an investment recommendation.
 
-        WRITING STYLE:
-        - Write naturally, like a thoughtful financial analyst.
-        - Use clear paragraphs and concise headings.
-        - Explain the significance of financial changes.
-        - Avoid repeating numbers without adding interpretation.
-        - Avoid promotional language and corporate buzzwords.
-        - Do not use phrases such as "robust performance",
-          "substantial upward inflection", "dynamic landscape",
-          or "testament to".
-        - Do not add filler to reach the word target.
+        Requirements:
+        - Reference specific years and financial figures.
+        - Interpret changes rather than merely list numbers.
+        - Compare earnings with operating cash flow.
+        - Discuss liquidity and leverage when data permits.
+        - Explain what margins and ratios indicate.
+        - Do not invent causes for financial changes.
+        - Distinguish facts from possible explanations.
+        - Do not label periods as projected without evidence.
+        - Do not claim figures were verified against filings.
+        - Do not make stock recommendations.
+        - Avoid buzzwords, filler, and repetitive language.
+        - Write naturally, clearly, and professionally.
         """
 
-        with st.spinner("Preparing financial analyst report..."):
+        with st.spinner("Generating financial analyst report..."):
             try:
                 client = genai.Client(
                     api_key=st.secrets["GEMINI_API_KEY"],
@@ -192,7 +327,7 @@ if "df" in st.session_state:
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.3,
-                        max_output_tokens=1600
+                        max_output_tokens=1800
                     )
                 )
 
