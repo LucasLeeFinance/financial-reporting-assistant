@@ -108,41 +108,77 @@ if "df" in st.session_state:
 
     st.subheader("Financial Analyst Report")
 
+   
     if st.button("Generate AI Report"):
         historical = df.copy()
-        historical.index = historical.index.year
+        historical.index = historical.index.strftime("%Y-%m-%d")
         historical["Revenue"] /= 1e9
         historical["Net Income"] /= 1e9
 
         financial_summary = historical.round(2).to_string()
 
         prompt = f"""
-        Prepare an independent financial analyst report
-        for {active_ticker}.
+        You are writing a financial research report for an
+        audience of finance professionals.
 
-        Historical annual financial data:
+        Company ticker: {active_ticker}
+
+        Annual financial data from a third-party data provider:
         {financial_summary}
 
-        Include:
+        IMPORTANT DATA RULES:
+        - Treat the figures as provider-supplied data that
+          has not yet been verified against company filings.
+        - Do not label any period as projected or forecasted
+          unless it is explicitly identified as such.
+        - Do not assume a period is audited or final.
+        - Do not invent causes, business events, or segment data.
+        - Clearly distinguish calculations, observations,
+          and possible explanations.
+        - Do not claim to have reviewed filings or other
+          documents that were not provided.
+
+        Write a financial analysis of approximately 700-900
+        words, but prioritize substance over length.
+
+        STRUCTURE:
+
         1. Executive Summary
-        2. Revenue Trends
+           Summarize the two or three most meaningful findings.
+
+        2. Revenue Performance
+           Examine growth rates, changes in growth,
+           and absolute revenue movements.
+
         3. Profitability Analysis
+           Examine net income, net profit margins,
+           and how earnings changed relative to revenue.
+
         4. Financial Strengths and Concerns
-        5. Areas for Further Investigation
+           Identify specific trends supported by the figures.
+           Explain why they matter to an analyst.
+
+        5. Questions for Further Investigation
+           Identify missing financial or operational
+           information needed to explain the trends.
+
         6. Analyst Conclusion
+           Provide a balanced assessment without
+           making an investment recommendation.
 
-        Reference specific figures and fiscal years.
-        Identify acceleration or deceleration in growth.
-        Compare revenue growth with profitability changes.
-
-        Write naturally and professionally.
-        Avoid generic praise, buzzwords, and repetitive language.
-        Do not invent explanations for financial changes.
-        Distinguish evidence from hypotheses.
-        Do not make stock recommendations.
+        WRITING STYLE:
+        - Write naturally, like a thoughtful financial analyst.
+        - Use clear paragraphs and concise headings.
+        - Explain the significance of financial changes.
+        - Avoid repeating numbers without adding interpretation.
+        - Avoid promotional language and corporate buzzwords.
+        - Do not use phrases such as "robust performance",
+          "substantial upward inflection", "dynamic landscape",
+          or "testament to".
+        - Do not add filler to reach the word target.
         """
 
-        with st.spinner("Generating report (up to 60 seconds)..."):
+        with st.spinner("Preparing financial analyst report..."):
             try:
                 client = genai.Client(
                     api_key=st.secrets["GEMINI_API_KEY"],
@@ -152,10 +188,12 @@ if "df" in st.session_state:
                 )
 
                 response = client.models.generate_content(
-                    
-model="gemini-3.5-flash-lite",
-
-                    contents=prompt
+                    model="gemini-3.5-flash-lite",
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.3,
+                        max_output_tokens=1600
+                    )
                 )
 
                 st.session_state.report = (
