@@ -684,3 +684,80 @@ if "comparison_data" in st.session_state:
         x_label="Cash Flow Metric",
         y_label="USD billions"
     )
+
+    st.subheader("AI Company Comparison")
+
+    if st.button("Generate Comparison Report"):
+        st.session_state.pop("comparison_report", None)
+
+        # Prepare the same financial metrics for both companies.
+        comparison_input = comparison_table.round(2).to_string()
+
+        prompt = f"""
+        Write a concise comparative financial analyst report.
+
+        Company 1: {name1}
+        Fiscal year ended: {date1}
+
+        Company 2: {name2}
+        Fiscal year ended: {date2}
+
+        Financial comparison:
+        {comparison_input}
+
+        IMPORTANT:
+        - Monetary figures are in USD billions.
+        - Percentage figures and ratios are labeled.
+        - The companies have different fiscal year-end dates.
+        - Do not assume their reporting periods are identical.
+        - Compare profitability, revenue growth, liquidity,
+          leverage, and operating cash flow.
+        - Explain differences in financial scale.
+        - Do not assume higher absolute revenue or cash flow
+          automatically means better financial performance.
+        - Do not invent reasons for financial differences.
+        - Do not confuse operating margin with net margin.
+        - Never invent missing figures.
+        - Avoid unsupported claims about business quality.
+        - Do not make stock recommendations.
+
+        Write approximately 400-600 words.
+
+        Structure:
+        1. Executive Comparison
+        2. Growth and Profitability
+        3. Financial Position
+        4. Cash Flow
+        5. Analyst Takeaways
+
+        Use clear, natural financial writing.
+        Focus on interpretation rather than repeating numbers.
+        """
+
+        with st.spinner("Generating company comparison..."):
+            try:
+                client = genai.Client(
+                    api_key=st.secrets["GEMINI_API_KEY"],
+                    http_options=types.HttpOptions(
+                        timeout=60000
+                    )
+                )
+
+                response = client.models.generate_content(
+                    model="gemini-3.5-flash-lite",
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                        max_output_tokens=1400
+                    )
+                )
+
+                st.session_state.comparison_report = (
+                    response.text or "No comparison was returned."
+                )
+
+            except Exception as e:
+                st.error(f"Comparison report unavailable: {e}")
+
+    if "comparison_report" in st.session_state:
+        st.markdown(st.session_state.comparison_report)
