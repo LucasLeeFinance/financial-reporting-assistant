@@ -380,73 +380,113 @@ if "df" in st.session_state:
 
     st.subheader("Financial Analyst Report")
 
+   
     if st.button("Generate AI Report"):
-        summary = df.copy()
-        summary.index = summary.index.strftime("%Y-%m-%d")
+        st.session_state.pop("report", None)
 
-        money_cols = [
-            "Revenue", "Gross Profit", "Operating Income",
-            "Net Income", "Cash", "Total Assets",
-            "Total Liabilities", "Equity", "Current Assets",
-            "Current Liabilities", "Total Debt",
-            "Operating Cash Flow", "Capital Expenditures",
+        # Prepare a smaller financial dataset for Gemini.
+        report_columns = [
+            "Revenue",
+            "Gross Profit",
+            "Operating Income",
+            "Net Income",
+            "Total Assets",
+            "Total Liabilities",
+            "Equity",
+            "Total Debt",
+            "Operating Cash Flow",
+            "Free Cash Flow",
+            "Revenue Growth (%)",
+            "Gross Margin (%)",
+            "Operating Margin (%)",
+            "Net Margin (%)",
+            "Current Ratio",
+            "Debt to Equity",
+            "ROE (%)"
+        ]
+
+        report_data = df[report_columns].copy()
+        report_data.index = report_data.index.year
+        report_data.index.name = "Fiscal Year"
+
+        money_columns = [
+            "Revenue",
+            "Gross Profit",
+            "Operating Income",
+            "Net Income",
+            "Total Assets",
+            "Total Liabilities",
+            "Equity",
+            "Total Debt",
+            "Operating Cash Flow",
             "Free Cash Flow"
         ]
 
-        summary[money_cols] = summary[money_cols] / 1e9
-        financial_summary = summary.round(2).to_string()
+        report_data[money_columns] /= 1e9
+
+        # Use explicit missing-value labels.
+        report_table = report_data.round(2).to_string(
+            na_rep="N/A"
+        )
 
         verified_observations = build_verified_observations(df)
 
         prompt = f"""
-        Write a professional financial analyst report for
-        {active_ticker} using the following annual data.
+        You are preparing a financial analyst research report.
 
-        Financial figures are in USD billions unless
-        identified as ratios or percentages.
+        Company ticker: {active_ticker}
 
-        {financial_summary}
+        The financial dataset below contains annual figures.
+        Monetary figures are in USD billions.
+        Percentage metrics are explicitly labeled (%).
+        Ratios without (%) are multiples.
 
-        PRECALCULATED FINANCIAL OBSERVATIONS:
+        FINANCIAL DATA:
+        {report_table}
+
+        PRECALCULATED OBSERVATIONS:
         {verified_observations}
 
-        These observations were calculated directly from
-        the supplied financial data. Use them when making
-        comparisons between fiscal years.
+        IMPORTANT:
+        - Use the exact metric names in the dataset.
+        - Never confuse gross, operating, and net margins.
+        - Never describe a decrease as growth.
+        - Never describe increasing debt-to-equity as
+          improving leverage.
+        - Compare operating cash flow and net income
+          separately for each fiscal year.
+        - Never claim a trend applies to every year
+          when an exception exists.
+        - Do not invent business explanations.
+        - Do not invent financial figures.
+        - Treat the figures as third-party provider data,
+          not independently verified SEC filing data.
+        - Do not label periods as forecasts without evidence.
 
-        Never contradict these calculations.
-        Do not claim that a financial trend occurred
-        in every year unless the data confirms it.
-        Do not infer the causes of financial changes
-        without supporting information.
+        Write approximately 650-850 words.
+        Do not add filler to meet the word target.
 
-        Write approximately 700-900 words, prioritizing
-        accuracy and meaningful analysis over length.
-
-        Include:
+        REPORT STRUCTURE:
         1. Executive Summary
         2. Revenue and Profitability
-        3. Balance Sheet and Financial Position
+        3. Balance Sheet and Liquidity
         4. Cash Flow and Earnings Quality
         5. Financial Strengths and Risks
         6. Analyst Conclusion
 
-        Requirements:
-        - Reference specific years and financial figures.
-        - Interpret changes rather than merely list numbers.
-        - Compare earnings with operating cash flow.
-        - Discuss liquidity and leverage when data permits.
-        - Explain what margins and ratios indicate.
-        - Do not invent causes for financial changes.
-        - Distinguish facts from possible explanations.
-        - Do not label periods as projected without evidence.
-        - Do not claim figures were verified against filings.
-        - Do not make stock recommendations.
-        - Avoid buzzwords, filler, and repetitive language.
-        - Write naturally, clearly, and professionally.
+        WRITING STYLE:
+        - Professional, clear, and natural.
+        - Use specific figures only when they add value.
+        - Explain why financial changes matter.
+        - Avoid exaggerated claims and corporate buzzwords.
+        - Avoid repeating the same conclusion.
+        - Do not make investment recommendations.
+
+        Before finalizing, check every numerical comparison
+        against the supplied dataset and observations.
         """
 
-        with st.spinner("Generating financial analyst report..."):
+        with st.spinner("Preparing financial analyst report..."):
             try:
                 client = genai.Client(
                     api_key=st.secrets["GEMINI_API_KEY"],
@@ -459,8 +499,8 @@ if "df" in st.session_state:
                     model="gemini-3.5-flash-lite",
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        temperature=0.3,
-                        max_output_tokens=1800
+                        temperature=0.1,
+                        max_output_tokens=2000
                     )
                 )
 
