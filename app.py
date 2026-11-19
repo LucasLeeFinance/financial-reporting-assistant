@@ -133,35 +133,89 @@ if analyze:
         st.write("Net Profit Margin")
         st.line_chart(df["Profit Margin"])
 
-    # Generate AI financial analysis
-    st.subheader("AI Financial Analysis")
+   
+    # Generate a more detailed financial analysis
+    st.subheader("Financial Analyst Report")
+
+    # Prepare multiple years of financial information
+    historical_data = df.copy()
+
+    historical_data["Revenue ($B)"] = (
+        historical_data["Revenue"] / 1e9
+    )
+
+    historical_data["Net Income ($B)"] = (
+        historical_data["Net Income"] / 1e9
+    )
+
+    historical_data.index = historical_data.index.year
+
+    historical_summary = historical_data[
+        [
+            "Revenue ($B)",
+            "Net Income ($B)",
+            "Revenue Growth",
+            "Profit Margin"
+        ]
+    ].round(2).to_string()
 
     prompt = f"""
-    You are a financial research assistant.
+    You are preparing an independent financial research report
+    for an audience of financial analysts.
 
-    Analyze {ticker} using these annual financial metrics:
+    Company ticker: {ticker}
 
-    Fiscal Year: {latest_year}
-    Revenue: ${latest["Revenue"]:,.0f}
-    Net Income: ${latest["Net Income"]:,.0f}
-    Revenue Growth: {latest["Revenue Growth"]:.2f}%
-    Net Profit Margin: {latest["Profit Margin"]:.2f}%
-    Previous Profit Margin: {previous["Profit Margin"]:.2f}%
+    Annual financial data:
+    {historical_summary}
 
-    Write a concise professional report containing:
+    Write a thoughtful, evidence-based financial analysis.
+
+    ANALYTICAL REQUIREMENTS:
 
     1. Executive Summary
-    2. Revenue Analysis
-    3. Profitability Analysis
-    4. Potential Risks
-    5. Analyst Conclusion
+       - Identify the most important financial developments.
+       - Explain whether performance is improving or deteriorating.
+       - Avoid generic praise or vague conclusions.
 
-    Use only the supplied figures.
-    Do not invent explanations for financial changes.
-    Identify questions requiring further investigation.
+    2. Revenue Performance
+       - Analyze year-over-year growth.
+       - Identify acceleration or deceleration in growth.
+       - Reference specific figures and fiscal years.
+
+    3. Profitability
+       - Analyze net income and net profit margins.
+       - Explain whether profitability is improving.
+       - Compare earnings growth with revenue growth.
+
+    4. Financial Strengths and Concerns
+       - Identify two or three meaningful observations.
+       - Explain why each matters to a financial analyst.
+       - Distinguish demonstrated trends from possible causes.
+
+    5. Areas Requiring Further Investigation
+       - Identify specific information needed to understand
+         the company's performance more fully.
+       - Do not pretend to know the cause of changes.
+
+    6. Analyst Conclusion
+       - Provide a balanced assessment of the financial trends.
+       - Explain the most important question for further research.
+
+    WRITING RULES:
+
+    - Write naturally, like a skilled financial analyst.
+    - Be direct, specific, and concise.
+    - Avoid corporate buzzwords and promotional language.
+    - Do not use phrases such as "robust performance,"
+      "dynamic landscape," or "testament to."
+    - Do not repeat the same figures unnecessarily.
+    - Never invent financial facts or business explanations.
+    - Do not make stock recommendations.
+    - Use clear headings and professional paragraphs.
+    - Base all conclusions on the supplied financial data.
     """
 
-    with st.spinner("Generating AI financial report..."):
+    with st.spinner("Preparing financial analyst report..."):
         try:
             client = genai.Client(
                 api_key=st.secrets["GEMINI_API_KEY"]
@@ -173,11 +227,11 @@ if analyze:
             )
 
             st.markdown(
-                response.text or "No AI report was returned."
+                response.text or "No report was generated."
             )
 
         except Exception as e:
             st.warning(
-                "The financial analysis loaded, but the AI report "
+                "Financial data loaded, but the report "
                 f"could not be generated: {e}"
             )
