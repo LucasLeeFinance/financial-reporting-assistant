@@ -842,69 +842,97 @@ def get_sec_company_facts(cik):
     return response.json()
 
 
+
 def get_sec_annual_value(facts, tags, fiscal_end):
     us_gaap = facts.get("facts", {}).get("us-gaap", {})
+    target_date = pd.Timestamp(fiscal_end)
     matches = []
 
-    for tag_priority, tag in enumerate(tags):
-        fact = us_gaap.get(tag, {})
-        entries = fact.get("units", {}).get("USD", [])
+    for priority, tag in enumerate(tags):
+        entries = (
+            us_gaap.get(tag, {})
+            .get("units", {})
+            .get("USD", [])
+        )
 
         for entry in entries:
             if entry.get("form") != "10-K":
                 continue
 
-            if entry.get("end") != fiscal_end:
-                continue
-
-            start = entry.get("start")
-
-            if not start:
+            if not all(
+                key in entry
+                for key in ["start", "end", "val"]
+            ):
                 continue
 
             try:
-                duration = (
-                    pd.Timestamp(entry["end"])
-                    - pd.Timestamp(start)
-                ).days
+                start = pd.Timestamp(entry["start"])
+                end = pd.Timestamp(entry["end"])
             except (ValueError, TypeError):
                 continue
 
-            # Require approximately one full fiscal year.
+            # Allow Yahoo Finance and SEC fiscal dates
+            # to differ by up to seven days.
+            date_difference = abs(
+                (end - target_date).days
+            )
+
+            duration = (end - start).days
+
+            if date_difference > 7:
+                continue
+
             if not 350 <= duration <= 380:
                 continue
 
-            if entry.get("val") is None:
-                continue
-
-            matches.append(
-                (
-                    tag_priority,
-                    entry.get("filed", ""),
-                    float(entry["val"]),
-                    tag,
-                )
-            )
+            matches.append({
+                "priority": priority,
+                "date_difference": date_difference,
+                "filed": entry.get("filed", ""),
+                "value": float(entry["val"]),
+                "tag": tag,
+                "sec_date": end.strftime("%Y-%m-%d"),
+            })
 
     if not matches:
-        return None, None
+        return None, None, None
 
-    # Prefer the primary accounting tag, then the
-    # latest SEC filing containing that annual value.
+    # Prefer closest date, preferred accounting tag,
+    # and most recently filed annual value.
     matches.sort(
-        key=lambda item: (item[0], item[1]),
-        reverse=False
+        key=lambda x: (
+            x["date_difference"],
+            x["priority"],
+            x["filed"],
+        )
     )
 
-    best_priority = matches[0][0]
-    preferred = [
-        item for item in matches
-        if item[0] == best_priority
+    closest_date = matches[0]["date_difference"]
+    closest_matches = [
+        x for x in matches
+        if x["date_difference"] == closest_date
     ]
-    preferred.sort(key=lambda item: item[1], reverse=True)
 
-    selected = preferred[0]
-    return selected[2], selected[3]
+    best_priority = min(
+        x["priority"] for x in closest_matches
+    )
+
+    preferred = [
+        x for x in closest_matches
+        if x["priority"] == best_priority
+    ]
+
+    selected = max(
+        preferred,
+        key=lambda x: x["filed"]
+    )
+
+    return (
+        selected["value"],
+        selected["tag"],
+        selected["sec_date"],
+    )
+
 
 
 if "df" in st.session_state and "analyzed_ticker" in st.session_state:
@@ -953,11 +981,13 @@ if "df" in st.session_state and "analyzed_ticker" in st.session_state:
 
                             yahoo_value = row.get(metric)
 
-                            sec_value, sec_tag = (
+                            
+                            sec_value, sec_tag, sec_date = (
                                 get_sec_annual_value(
                                     sec_facts,
                                     tags,
                                     fiscal_end
+
                                 )
                             )
 
@@ -967,6 +997,7 @@ if "df" in st.session_state and "analyzed_ticker" in st.session_state:
                             ):
                                 results.append({
                                     "Fiscal Year End": fiscal_end,
+                                    "SEC Reporting Date": sec_date,
                                     "Metric": metric,
                                     "Yahoo Finance ($B)": (
                                         yahoo_value / 1e9
@@ -1007,6 +1038,7 @@ if "df" in st.session_state and "analyzed_ticker" in st.session_state:
 
                             results.append({
                                 "Fiscal Year End": fiscal_end,
+                                "SEC Reporting Date": sec_date,
                                 "Metric": metric,
                                 "Yahoo Finance ($B)": (
                                     float(yahoo_value) / 1e9
