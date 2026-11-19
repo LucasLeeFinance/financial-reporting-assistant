@@ -15,32 +15,154 @@ st.set_page_config(
 # WEBSITE HEADER AND NAVIGATION
 # =====================================
 
+
+# =====================================
+# PROFESSIONAL WEBSITE DESIGN
+# =====================================
+
 st.markdown("""
 <style>
+
+/* Main page layout */
 .block-container {
-    max-width: 1250px;
+    max-width: 1320px;
     padding-top: 2rem;
-    padding-bottom: 3rem;
+    padding-bottom: 4rem;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
 }
 
-h1, h2, h3 {
+/* Typography */
+h1 {
+    font-size: 2.4rem !important;
+    font-weight: 750 !important;
+    letter-spacing: -1.2px;
+    margin-bottom: 0.5rem;
+}
+
+h2 {
+    font-size: 1.65rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.5px;
+    margin-top: 1.5rem;
+}
+
+h3 {
+    font-size: 1.2rem !important;
+    font-weight: 650 !important;
+}
+
+p {
+    line-height: 1.65;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    border-right: 1px solid rgba(128,128,128,0.15);
+}
+
+section[data-testid="stSidebar"] h1 {
+    font-size: 1.45rem !important;
     letter-spacing: -0.5px;
 }
 
+/* Financial metric cards */
 div[data-testid="stMetric"] {
-    background-color: rgba(128, 128, 128, 0.07);
-    padding: 18px;
-    border-radius: 12px;
-    border: 1px solid rgba(128, 128, 128, 0.15);
+    background: rgba(70, 115, 180, 0.07);
+    border: 1px solid rgba(90, 135, 190, 0.18);
+    border-radius: 14px;
+    padding: 20px 18px;
+    min-height: 115px;
 }
 
-div[data-testid="stDataFrame"] {
-    border-radius: 10px;
+div[data-testid="stMetricLabel"] {
+    font-size: 0.9rem;
+    font-weight: 550;
 }
+
+div[data-testid="stMetricValue"] {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+/* Buttons */
+div.stButton > button[kind="primary"] {
+    background-color: #2056A5;
+    border: none;
+    border-radius: 9px;
+    font-weight: 600;
+}
+
+div.stButton > button {
+    border-radius: 9px;
+    font-weight: 600;
+    min-height: 42px;
+}
+
+div.stButton > button:hover {
+    border-color: #3B82F6;
+}
+
+/* Input fields */
+div[data-baseweb="input"] {
+    border-radius: 9px;
+}
+
+/* Tables */
+div[data-testid="stDataFrame"] {
+    border: 1px solid rgba(128,128,128,0.15);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* Tabs */
+button[data-baseweb="tab"] {
+    font-weight: 600;
+    padding: 12px 18px;
+}
+
+/* Horizontal dividers */
+hr {
+    border-color: rgba(128,128,128,0.15);
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+}
+
+/* Captions */
+div[data-testid="stCaptionContainer"] {
+    opacity: 0.85;
+}
+
+/* Responsive mobile layout */
+@media (max-width: 768px) {
+    .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        padding-top: 1rem;
+    }
+
+    h1 {
+        font-size: 1.85rem !important;
+    }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-st.sidebar.title("Financial Reporting Assistant")
+
+
+st.title("Financial Reporting Assistant")
+
+st.markdown(
+    "**Financial Intelligence & Reporting Platform**"
+)
+
+st.caption(
+    "Analyze financial performance, compare publicly traded "
+    "companies, and verify reported figures using SEC data."
+)
+
 st.sidebar.caption("Financial Analysis Platform")
 
 
