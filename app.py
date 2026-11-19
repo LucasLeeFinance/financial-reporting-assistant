@@ -46,11 +46,6 @@ st.sidebar.caption("Financial Analysis Platform")
 
 st.sidebar.markdown("### Navigation")
 
-st.sidebar.page_link(
-    "app.py",
-    label="Financial Reporting Dashboard",
-    icon="📊"
-)
 
 st.sidebar.markdown("**Jump to Section**")
 
