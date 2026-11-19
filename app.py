@@ -61,7 +61,6 @@ st.sidebar.markdown("""
 - [Advanced Analysis](#advanced-financial-analysis)
 """)
 
-)
 
 st.sidebar.divider()
 st.sidebar.caption(
