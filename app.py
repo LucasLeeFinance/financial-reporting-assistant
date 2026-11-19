@@ -39,7 +39,7 @@ def safe_ratio(numerator, denominator, multiplier=1):
 
 @st.cache_data(ttl=3600)
 def get_financial_data():
-    company = yf.()
+    company = yf.Ticker(ticker)
 
     income = company.income_stmt
     balance = company.balance_sheet
