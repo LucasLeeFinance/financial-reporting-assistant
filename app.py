@@ -231,9 +231,12 @@ st.write(
     "Review official SEC filings to verify the figures."
 )
 
+
 st.link_button(
     "Search Official SEC Filings",
-    "https://www.sec.gov/search-filings"
+    f"https://www.sec.gov/edgar/search/#/q={ticker}&filter_forms=10-K"
+
+
 )
 
 st.caption(
