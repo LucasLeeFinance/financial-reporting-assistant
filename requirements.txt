@@ -4,3 +4,4 @@ yfinance
 pandas
 matplotlib
 google-genai>=2.12.1,<3
+requests
